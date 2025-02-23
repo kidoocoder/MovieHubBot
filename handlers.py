@@ -1,3 +1,4 @@
+import logging
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes, ConversationHandler
 from telegram.constants import ParseMode
@@ -11,13 +12,28 @@ from utils import (
     create_main_menu_keyboard
 )
 
-# Conversation states
-MOVIE_NAME, MOVIE_DESC, MOVIE_POSTER, MOVIE_LINK, MOVIE_CATEGORIES = range(5)
+# Configure logging
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.INFO
+)
+logger = logging.getLogger(__name__)
+
+# Conversation states as string constants for clarity
+STATES = {
+    'MOVIE_NAME': 'MOVIE_NAME',
+    'MOVIE_DESC': 'MOVIE_DESC',
+    'MOVIE_POSTER': 'MOVIE_POSTER',
+    'MOVIE_LINK': 'MOVIE_LINK',
+    'MOVIE_CATEGORIES': 'MOVIE_CATEGORIES',
+    'AWAITING_SEARCH': 'AWAITING_SEARCH'
+}
 
 db = MovieDatabase()
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /start command"""
+    logger.info("User %s started the bot", update.effective_user.id)
     keyboard = create_main_menu_keyboard()
     await update.message.reply_text(
         WELCOME_MESSAGE,
@@ -36,14 +52,16 @@ async def owner_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def search_movie(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle movie search"""
     query = update.callback_query
+    logger.info("User %s initiated search", update.effective_user.id)
     await query.answer()
     await query.message.reply_text(
         "Please enter the movie name you want to search:"
     )
-    return "awaiting_search"
+    return STATES['AWAITING_SEARCH']
 
 async def process_search(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Process movie search query"""
+    logger.info("Processing search query from user %s", update.effective_user.id)
     search_query = update.message.text
     movies = db.search_movie(search_query)
 
@@ -101,56 +119,98 @@ async def show_movie_details(update: Update, context: ContextTypes.DEFAULT_TYPE)
 # Owner-only commands
 async def add_movie(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Start movie addition process"""
-    if update.effective_user.id != OWNER_ID:
+    user_id = update.effective_user.id
+    logger.info("User %s attempting to add movie", user_id)
+
+    if user_id != OWNER_ID:
+        logger.warning("Unauthorized user %s tried to add movie", user_id)
         await update.message.reply_text("This command is only for the bot owner!")
         return ConversationHandler.END
 
-    await update.message.reply_text("Please enter the movie name:")
-    return MOVIE_NAME
+    context.user_data.clear()  # Clear any existing conversation data
+    keyboard = [[InlineKeyboardButton("❌ Cancel", callback_data="cancel")]]
+    await update.message.reply_text(
+        "Please enter the movie name:\n\nOr click Cancel to abort.",
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
+    return STATES['MOVIE_NAME']
 
 async def process_movie_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Process movie name"""
+    logger.info("Processing movie name from user %s", update.effective_user.id)
+    if update.callback_query and update.callback_query.data == "cancel":
+        await update.callback_query.answer()
+        await update.callback_query.message.reply_text("Movie addition cancelled.")
+        return ConversationHandler.END
+
     context.user_data['movie_name'] = update.message.text
-    await update.message.reply_text("Please enter the movie description:")
-    return MOVIE_DESC
+    keyboard = [[InlineKeyboardButton("❌ Cancel", callback_data="cancel")]]
+    await update.message.reply_text(
+        "Please enter the movie description:",
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
+    return STATES['MOVIE_DESC']
 
 async def process_movie_description(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Process movie description"""
+    if update.callback_query and update.callback_query.data == "cancel":
+        await update.callback_query.answer()
+        await update.callback_query.message.reply_text("Movie addition cancelled.")
+        return ConversationHandler.END
+    logger.info("Processing movie description from user %s", update.effective_user.id)
     context.user_data['movie_description'] = update.message.text
-    await update.message.reply_text("Please enter the movie poster URL:")
-    return MOVIE_POSTER
+    keyboard = [[InlineKeyboardButton("❌ Cancel", callback_data="cancel")]]
+    await update.message.reply_text("Please enter the movie poster URL:", reply_markup=InlineKeyboardMarkup(keyboard))
+    return STATES['MOVIE_POSTER']
 
 async def process_movie_poster(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Process movie poster"""
+    if update.callback_query and update.callback_query.data == "cancel":
+        await update.callback_query.answer()
+        await update.callback_query.message.reply_text("Movie addition cancelled.")
+        return ConversationHandler.END
+    logger.info("Processing movie poster from user %s", update.effective_user.id)
     poster_url = update.message.text
     if not validate_image_url(poster_url):
         await update.message.reply_text("Invalid image URL. Please try again:")
-        return MOVIE_POSTER
+        return STATES['MOVIE_POSTER']
 
     context.user_data['poster_url'] = poster_url
-    await update.message.reply_text("Please enter the download link:")
-    return MOVIE_LINK
+    keyboard = [[InlineKeyboardButton("❌ Cancel", callback_data="cancel")]]
+    await update.message.reply_text("Please enter the download link:", reply_markup=InlineKeyboardMarkup(keyboard))
+    return STATES['MOVIE_LINK']
 
 async def process_movie_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Process movie download link"""
+    if update.callback_query and update.callback_query.data == "cancel":
+        await update.callback_query.answer()
+        await update.callback_query.message.reply_text("Movie addition cancelled.")
+        return ConversationHandler.END
+    logger.info("Processing movie link from user %s", update.effective_user.id)
     context.user_data['download_link'] = update.message.text
     keyboard = create_category_keyboard()
     await update.message.reply_text(
         "Select movie categories:",
         reply_markup=keyboard
     )
-    return MOVIE_CATEGORIES
+    return STATES['MOVIE_CATEGORIES']
 
 async def process_movie_categories(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Process movie categories and save movie"""
+    if update.callback_query and update.callback_query.data == "cancel":
+        await update.callback_query.answer()
+        await update.callback_query.message.reply_text("Movie addition cancelled.")
+        return ConversationHandler.END
     query = update.callback_query
     await query.answer()
+    logger.info("Processing movie categories from user %s", update.effective_user.id)
 
     selected_category = query.data.split('_')[1]
     if 'categories' not in context.user_data:
         context.user_data['categories'] = []
 
-    context.user_data['categories'].append(selected_category)
+    if selected_category not in context.user_data['categories']:
+        context.user_data['categories'].append(selected_category)
 
     movie_data = {
         'name': context.user_data['movie_name'],
@@ -160,6 +220,13 @@ async def process_movie_categories(update: Update, context: ContextTypes.DEFAULT
         'categories': context.user_data['categories']
     }
 
-    db.add_movie(movie_data)
-    await query.message.reply_text("Movie added successfully!")
+    try:
+        db.add_movie(movie_data)
+        logger.info("Successfully added movie: %s", movie_data['name'])
+        await query.message.reply_text("Movie added successfully!")
+    except Exception as e:
+        logger.error("Failed to add movie: %s", str(e))
+        await query.message.reply_text("Failed to add movie. Please try again.")
+
+    context.user_data.clear()  # Clear the user data after completion
     return ConversationHandler.END
