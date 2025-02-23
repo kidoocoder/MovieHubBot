@@ -6,7 +6,8 @@ from config import (
     OWNER_ID, 
     WELCOME_MESSAGE, 
     MOVIE_CATEGORIES,
-    WELCOME_IMAGE_URL
+    WELCOME_IMAGE_URL,
+    LOG_GROUP_ID
 )
 from database import MovieDatabase
 from utils import (
@@ -80,21 +81,47 @@ async def search_movie(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return STATES['AWAITING_SEARCH']
 
 async def process_search(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Process movie search query"""
+    """Process movie search query with enhanced UI"""
     logger.info("Processing search query from user %s", update.effective_user.id)
     search_query = update.message.text
     movies = db.search_movie(search_query)
 
     if not movies:
+        # Send enhanced "not found" message to user
         await update.message.reply_text(
-            "I don't have this movie, please wait 24 hours for it to be uploaded."
+            "🔍 *Movie Not Found*\n\n"
+            "Sorry, I couldn't find the movie you're looking for.\n"
+            "I've noted your request and will try to add it within 24 hours!\n\n"
+            "🕒 Please check back later.",
+            parse_mode=ParseMode.MARKDOWN
         )
+
+        # Forward request to log group if configured
+        if LOG_GROUP_ID:
+            try:
+                log_message = (
+                    f"🎬 *New Movie Request*\n\n"
+                    f"👤 *Requested by:* {update.effective_user.mention_html()}\n"
+                    f"🔍 *Movie Title:* `{search_query}`\n"
+                    f"⏰ *Time:* {update.message.date.strftime('%Y-%m-%d %H:%M:%S')}"
+                )
+                await context.bot.send_message(
+                    chat_id=LOG_GROUP_ID,
+                    text=log_message,
+                    parse_mode=ParseMode.HTML
+                )
+                logger.info(f"Movie request logged for: {search_query}")
+            except Exception as e:
+                logger.error(f"Failed to send log message: {str(e)}")
+
         return ConversationHandler.END
 
-    keyboard = create_movie_keyboard(movies)
+    # Enhanced search results message
     await update.message.reply_text(
-        "Here are the matching movies:",
-        reply_markup=keyboard
+        f"🎯 *Found {len(movies)} matching movies:*\n"
+        "Select one to view details:",
+        reply_markup=create_movie_keyboard(movies),
+        parse_mode=ParseMode.MARKDOWN
     )
     return ConversationHandler.END
 
@@ -115,7 +142,7 @@ async def recommend_movies(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 async def show_movie_details(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Show details for selected movie"""
+    """Show enhanced movie details"""
     query = update.callback_query
     await query.answer()
 
@@ -123,16 +150,33 @@ async def show_movie_details(update: Update, context: ContextTypes.DEFAULT_TYPE)
     movie = db.get_movie(movie_id)
 
     if not movie:
-        await query.message.reply_text("Movie not found!")
+        await query.message.reply_text("❌ Movie not found!")
         return
 
+    # Enhanced download buttons
     keyboard = [
-        [InlineKeyboardButton(text="⬇️ Direct Download", url=movie['download_link'])],
-        [InlineKeyboardButton(text="📢 Download from Channel", url=movie['telegram_link'])]
+        [
+            InlineKeyboardButton(
+                text="📥 Direct Download",
+                url=movie['download_link']
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                text="📢 Download from Channel",
+                url=movie['telegram_link']
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                text="🏠 Main Menu",
+                callback_data="start"
+            )
+        ]
     ]
 
     try:
-        # Send photo with caption and download buttons
+        # Send enhanced movie details with poster
         await query.message.reply_photo(
             photo=movie['poster_url'],
             caption=format_movie_details(movie),
@@ -141,9 +185,9 @@ async def show_movie_details(update: Update, context: ContextTypes.DEFAULT_TYPE)
         )
     except Exception as e:
         logger.error(f"Failed to send movie poster: {str(e)}")
-        # Fallback to text-only message if image fails
+        # Fallback to text-only message with enhanced formatting
         await query.message.reply_text(
-            format_movie_details(movie),
+            f"❌ *Image Error*\n\n{format_movie_details(movie)}",
             reply_markup=InlineKeyboardMarkup(keyboard),
             parse_mode=ParseMode.MARKDOWN
         )
@@ -453,6 +497,8 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 /delmovie - Delete an existing movie
 /listmovies - List all movies (including hidden)
 /togglemovie [id] - Toggle movie visibility
+/hide [movie name] - Hide a movie
+/show [movie name] - Show a movie
         """
         help_text += owner_help
 
@@ -470,27 +516,22 @@ async def command_search(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return STATES['AWAITING_SEARCH']
 
 async def list_all_movies(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """
-    Owner command to list all movies including hidden ones.
-    Command: /listmovies
-    """
+    """Enhanced list of all movies including hidden ones"""
     user_id = update.effective_user.id
     if user_id != OWNER_ID:
-        await update.message.reply_text("This command is only for the bot owner!")
+        await update.message.reply_text("⚠️ This command is only for the bot owner!")
         return
 
     movies = db.get_all_movies(include_hidden=True)
     if not movies:
-        await update.message.reply_text("No movies in database!")
+        await update.message.reply_text("📭 No movies in database!")
         return
 
-    # Create a formatted list of movies with visibility status
-    movie_list = "*📽 All Movies (Including Hidden):*\n\n"
+    # Create an enhanced formatted list of movies
+    movie_list = "🎬 *Movie Database Status*\n\n"
     for movie in movies:
         status = "🟢" if movie['visible'] else "🔴"
-        movie_list += f"{status} *{movie['name']}*\n"
-        movie_list += f"ID: `{movie['id']}`\n"
-        movie_list += f"Categories: {', '.join(movie['categories'])}\n\n"
+        movie_list += f"{status} {movie['name']}\n"
 
     # Split message if it's too long
     if len(movie_list) > 4096:
@@ -506,13 +547,140 @@ async def list_all_movies(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode=ParseMode.MARKDOWN
         )
 
-    # Add instructions for toggling visibility
+    # Add enhanced instructions
     await update.message.reply_text(
-        "To toggle movie visibility, use:\n"
-        "/togglemovie [movie_id]\n\n"
+        "📝 *Movie Management Commands:*\n\n"
+        "• `/hide [movie name]` - Hide from users\n"
+        "• `/show [movie name]` - Make visible\n\n"
         "🟢 = Visible to users\n"
-        "🔴 = Hidden from users"
+        "🔴 = Hidden from users",
+        parse_mode=ParseMode.MARKDOWN
     )
+
+async def hide_movie(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Owner command to hide a movie by name.
+    Command: /hide <movie_name>
+    """
+    user_id = update.effective_user.id
+    if user_id != OWNER_ID:
+        await update.message.reply_text("This command is only for the bot owner!")
+        return
+
+    if not context.args:
+        await update.message.reply_text(
+            "Please provide a movie name.\n"
+            "Usage: /hide movie name"
+        )
+        return
+
+    movie_name = " ".join(context.args)
+    movies = db.search_movie(movie_name)
+
+    if not movies:
+        await update.message.reply_text("Movie not found!")
+        return
+
+    if len(movies) > 1:
+        # Multiple matches found
+        keyboard = []
+        for movie in movies:
+            keyboard.append([
+                InlineKeyboardButton(
+                    text=movie['name'],
+                    callback_data=f"hide_{movie['id']}"
+                )
+            ])
+        await update.message.reply_text(
+            "Multiple movies found. Please select one:",
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+        return
+
+    # Single movie found
+    movie = movies[0]
+    if not movie['visible']:
+        await update.message.reply_text(f"Movie '{movie['name']}' is already hidden!")
+        return
+
+    if db.toggle_movie_visibility(movie['id']):
+        await update.message.reply_text(f"Successfully hidden movie '{movie['name']}'!")
+    else:
+        await update.message.reply_text("Failed to hide movie!")
+
+async def show_movie(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Owner command to show a hidden movie by name.
+    Command: /show <movie_name>
+    """
+    user_id = update.effective_user.id
+    if user_id != OWNER_ID:
+        await update.message.reply_text("This command is only for the bot owner!")
+        return
+
+    if not context.args:
+        await update.message.reply_text(
+            "Please provide a movie name.\n"
+            "Usage: /show movie name"
+        )
+        return
+
+    movie_name = " ".join(context.args)
+    movies = db.search_movie(movie_name)
+
+    if not movies:
+        await update.message.reply_text("Movie not found!")
+        return
+
+    if len(movies) > 1:
+        # Multiple matches found
+        keyboard = []
+        for movie in movies:
+            keyboard.append([
+                InlineKeyboardButton(
+                    text=movie['name'],
+                    callback_data=f"show_{movie['id']}"
+                )
+            ])
+        await update.message.reply_text(
+            "Multiple movies found. Please select one:",
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+        return
+
+    # Single movie found
+    movie = movies[0]
+    if movie['visible']:
+        await update.message.reply_text(f"Movie '{movie['name']}' is already visible!")
+        return
+
+    if db.toggle_movie_visibility(movie['id']):
+        await update.message.reply_text(f"Successfully made movie '{movie['name']}' visible!")
+    else:
+        await update.message.reply_text("Failed to show movie!")
+
+async def handle_visibility_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle callback for movie visibility toggle"""
+    query = update.callback_query
+    await query.answer()
+
+    if update.effective_user.id != OWNER_ID:
+        await query.message.reply_text("This action is only for the bot owner!")
+        return
+
+    action, movie_id = query.data.split('_')
+    movie_id = int(movie_id)
+    movie = db.get_movie(movie_id)
+
+    if not movie:
+        await query.message.reply_text("Movie not found!")
+        return
+
+    if db.toggle_movie_visibility(movie_id):
+        new_status = "hidden" if action == "hide" else "visible"
+        await query.message.reply_text(f"Successfully made movie '{movie['name']}' {new_status}!")
+    else:
+        await query.message.reply_text("Failed to update movie visibility!")
 
 async def toggle_movie_visibility(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
@@ -539,9 +707,14 @@ async def toggle_movie_visibility(update: Update, context: ContextTypes.DEFAULT_
         return
 
     if db.toggle_movie_visibility(movie_id):
-        new_status = "visible" if db.get_movie(movie_id)['visible'] else "hidden"
-        await update.message.reply_text(
-            f"Successfully set movie '{movie['name']}' to {new_status}!"
-        )
+        # Get the updated movie details
+        updated_movie = db.get_movie(movie_id)
+        if updated_movie:  # Add null check
+            new_status = "visible" if updated_movie['visible'] else "hidden"
+            await update.message.reply_text(
+                f"Successfully set movie '{movie['name']}' to {new_status}!"
+            )
+        else:
+            await update.message.reply_text("Failed to verify movie visibility status!")
     else:
         await update.message.reply_text("Failed to toggle movie visibility!")

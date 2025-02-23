@@ -16,19 +16,40 @@ logger = logging.getLogger(__name__)
 # Keyboard Creation Functions
 def create_movie_keyboard(movies: List[dict]) -> ReplyMarkup:
     """
-    Create keyboard markup for movie list.
-    
+    Create an enhanced keyboard markup for movie list.
+
     Args:
         movies (List[dict]): List of movie dictionaries
-    
+
     Returns:
         ReplyMarkup: Telegram keyboard markup for movies
     """
     keyboard = []
     for movie in movies:
+        # Add emoji based on first category
+        emoji = "🎬"  # Default emoji
+        if movie['categories']:
+            first_category = movie['categories'][0].lower()
+            if "action" in first_category:
+                emoji = "💥"
+            elif "comedy" in first_category:
+                emoji = "😄"
+            elif "drama" in first_category:
+                emoji = "🎭"
+            elif "horror" in first_category:
+                emoji = "👻"
+            elif "romance" in first_category:
+                emoji = "💝"
+            elif "sci-fi" in first_category:
+                emoji = "🚀"
+            elif "thriller" in first_category:
+                emoji = "🔍"
+            elif "documentary" in first_category:
+                emoji = "📚"
+
         keyboard.append([
             InlineKeyboardButton(
-                text=movie['name'],
+                text=f"{emoji} {movie['name']}",
                 callback_data=f"movie_{movie['id']}"
             )
         ])
@@ -36,8 +57,8 @@ def create_movie_keyboard(movies: List[dict]) -> ReplyMarkup:
 
 def create_category_keyboard() -> ReplyMarkup:
     """
-    Create keyboard markup for categories.
-    
+    Create enhanced keyboard markup for categories.
+
     Returns:
         ReplyMarkup: Telegram keyboard markup for categories
     """
@@ -45,9 +66,10 @@ def create_category_keyboard() -> ReplyMarkup:
     keyboard = []
     row = []
     for i, category in enumerate(MOVIE_CATEGORIES):
+        emoji, name = category.split()
         row.append(InlineKeyboardButton(
-            text=category,
-            callback_data=f"category_{category}"
+            text=f"{emoji} {name}",
+            callback_data=f"category_{name}"
         ))
         if len(row) == 2:
             keyboard.append(row)
@@ -58,7 +80,7 @@ def create_category_keyboard() -> ReplyMarkup:
 
 def create_main_menu_keyboard() -> ReplyMarkup:
     """
-    Create main menu keyboard.
+    Create enhanced main menu keyboard.
 
     Returns:
         ReplyMarkup: Telegram keyboard markup for main menu
@@ -67,13 +89,14 @@ def create_main_menu_keyboard() -> ReplyMarkup:
     keyboard = [
         [
             InlineKeyboardButton(text="👤 Owner Info", callback_data="owner_info"),
-            InlineKeyboardButton(text="💬 Support Channel", url=SUPPORT_CHANNEL)
+            InlineKeyboardButton(text="💬 Support", url=SUPPORT_CHANNEL)
         ],
         [
-            InlineKeyboardButton(text="🎬 Recommend Movies", callback_data="recommend"),
-            InlineKeyboardButton(text="🔍 Search Movie", callback_data="search")
+            InlineKeyboardButton(text="🎲 Recommend", callback_data="recommend"),
+            InlineKeyboardButton(text="🔍 Search", callback_data="search")
         ],
         [
+            InlineKeyboardButton(text="📚 Categories", callback_data="categories"),
             InlineKeyboardButton(text="❓ Help", callback_data="help")
         ]
     ]
@@ -117,11 +140,11 @@ def validate_image_url(url: str) -> bool:
 # Message Formatting Functions
 def format_movie_details(movie: dict) -> str:
     """
-    Format movie details for display.
-    
+    Format movie details for display with enhanced UI.
+
     Args:
         movie (dict): Movie data dictionary
-    
+
     Returns:
         str: Formatted movie details string
     """
@@ -131,5 +154,12 @@ def format_movie_details(movie: dict) -> str:
 📝 *Description:*
 {movie['description']}
 
-🎭 *Categories:* {', '.join(movie['categories'])}
+🎭 *Categories:* 
+{' '.join(['#' + cat.split()[1] for cat in movie['categories']])}
+
+📥 *Download Options:*
+• Direct Download
+• Channel Download
+
+⭐️ *Share this movie with friends!*
     """

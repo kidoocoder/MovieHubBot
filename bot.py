@@ -29,7 +29,9 @@ from handlers import (
     command_search,
     STATES,
     list_all_movies,
-    toggle_movie_visibility,
+    hide_movie,
+    show_movie,
+    handle_visibility_callback,
 )
 
 # Enable logging
@@ -131,7 +133,9 @@ def main():
     application.add_handler(CallbackQueryHandler(show_movie_details, pattern='^movie_'))
     application.add_handler(CallbackQueryHandler(help_command, pattern='^help$'))
     application.add_handler(CommandHandler('listmovies', list_all_movies))
-    application.add_handler(CommandHandler('togglemovie', toggle_movie_visibility))
+    application.add_handler(CommandHandler('hide', hide_movie))
+    application.add_handler(CommandHandler('show', show_movie))
+    application.add_handler(CallbackQueryHandler(handle_visibility_callback, pattern='^(hide|show)_\d+$'))
 
     # Start the bot
     application.run_polling()
