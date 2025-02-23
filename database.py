@@ -113,3 +113,22 @@ class MovieDatabase:
             return []
         finally:
             session.close()
+
+    def delete_movie(self, movie_id: int) -> bool:
+        """Delete a movie from the database"""
+        session = self.get_session()
+        try:
+            movie = session.query(Movie).filter(Movie.id == movie_id).first()
+            if movie:
+                session.delete(movie)
+                session.commit()
+                logger.info(f"Successfully deleted movie with ID: {movie_id}")
+                return True
+            logger.warning(f"Movie with ID {movie_id} not found for deletion")
+            return False
+        except Exception as e:
+            logger.error(f"Error deleting movie: {str(e)}")
+            session.rollback()
+            return False
+        finally:
+            session.close()

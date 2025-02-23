@@ -15,12 +15,15 @@ from handlers import (
     recommend_movies,
     show_movie_details,
     add_movie,
+    delete_movie,  # New import
     process_movie_name,
     process_movie_description,
     process_movie_poster,
     process_movie_link,
     process_movie_categories,
     process_search,
+    confirm_delete_movie,  # New import
+    process_delete_confirmation,  # New import
     STATES
 )
 
@@ -86,10 +89,30 @@ def main():
         name="search_conversation"
     )
 
+    # Add delete movie conversation handler
+    delete_conv_handler = ConversationHandler(
+        entry_points=[CommandHandler('delmovie', delete_movie)],
+        states={
+            STATES['DELETE_CONFIRMATION']: [
+                CallbackQueryHandler(confirm_delete_movie, pattern=r'^movie_'),
+                CallbackQueryHandler(process_delete_confirmation, pattern=r'^confirm_delete_'),
+                CallbackQueryHandler(process_delete_confirmation, pattern='^cancel_delete$')
+            ]
+        },
+        fallbacks=[
+            CommandHandler('start', start),
+            CallbackQueryHandler(start, pattern='^cancel$')
+        ],
+        per_user=True,
+        allow_reentry=True,
+        name="delete_conversation"
+    )
+
     # Add handlers in specific order - movie handler BEFORE search handler
     application.add_handler(CommandHandler('start', start))
-    application.add_handler(movie_conv_handler)  # Movie handler first
-    application.add_handler(search_conv_handler)  # Search handler second
+    application.add_handler(movie_conv_handler)  
+    application.add_handler(search_conv_handler)  
+    application.add_handler(delete_conv_handler)  # Add the new handler
     application.add_handler(CallbackQueryHandler(owner_info, pattern='^owner_info$'))
     application.add_handler(CallbackQueryHandler(recommend_movies, pattern='^recommend$'))
     application.add_handler(CallbackQueryHandler(show_movie_details, pattern='^movie_'))

@@ -26,7 +26,8 @@ STATES = {
     'MOVIE_POSTER': 'MOVIE_POSTER',
     'MOVIE_LINK': 'MOVIE_LINK',
     'MOVIE_CATEGORIES': 'MOVIE_CATEGORIES',
-    'AWAITING_SEARCH': 'AWAITING_SEARCH'
+    'AWAITING_SEARCH': 'AWAITING_SEARCH',
+    'DELETE_CONFIRMATION': 'DELETE_CONFIRMATION'  # New state
 }
 
 db = MovieDatabase()
@@ -291,4 +292,75 @@ async def process_movie_categories(update: Update, context: ContextTypes.DEFAULT
         await query.message.reply_text("Failed to add movie. Please try again.")
 
     context.user_data.clear()  # Clear the user data after completion
+    return ConversationHandler.END
+
+
+async def delete_movie(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Start movie deletion process"""
+    user_id = update.effective_user.id
+    logger.info("User %s attempting to delete movie", user_id)
+
+    if user_id != OWNER_ID:
+        logger.warning("Unauthorized user %s tried to delete movie", user_id)
+        await update.message.reply_text("This command is only for the bot owner!")
+        return ConversationHandler.END
+
+    # Get all movies and create keyboard
+    movies = db.get_all_movies()
+    if not movies:
+        await update.message.reply_text("No movies available to delete!")
+        return ConversationHandler.END
+
+    keyboard = create_movie_keyboard(movies)
+    await update.message.reply_text(
+        "Select the movie you want to delete:",
+        reply_markup=keyboard
+    )
+    return STATES['DELETE_CONFIRMATION']
+
+async def confirm_delete_movie(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Process movie deletion confirmation"""
+    if update.effective_user.id != OWNER_ID:
+        logger.warning("Unauthorized user %s tried to delete movie", update.effective_user.id)
+        await update.callback_query.message.reply_text("This command is only for the bot owner!")
+        return ConversationHandler.END
+
+    query = update.callback_query
+    await query.answer()
+
+    movie_id = int(query.data.split('_')[1])
+    movie = db.get_movie(movie_id)
+
+    if not movie:
+        await query.message.reply_text("Movie not found!")
+        return ConversationHandler.END
+
+    # Create confirmation keyboard
+    keyboard = [
+        [
+            InlineKeyboardButton("✅ Yes, delete", callback_data=f"confirm_delete_{movie_id}"),
+            InlineKeyboardButton("❌ No, cancel", callback_data="cancel_delete")
+        ]
+    ]
+    await query.message.reply_text(
+        f"Are you sure you want to delete '{movie['name']}'?",
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
+    return STATES['DELETE_CONFIRMATION']
+
+async def process_delete_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Process the final deletion confirmation"""
+    query = update.callback_query
+    await query.answer()
+
+    if query.data == "cancel_delete":
+        await query.message.reply_text("Movie deletion cancelled.")
+        return ConversationHandler.END
+
+    movie_id = int(query.data.split('_')[1]) #Corrected index here.
+    if db.delete_movie(movie_id):
+        await query.message.reply_text("Movie successfully deleted!")
+    else:
+        await query.message.reply_text("Failed to delete movie. Please try again.")
+
     return ConversationHandler.END
