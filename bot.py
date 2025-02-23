@@ -15,17 +15,21 @@ from handlers import (
     recommend_movies,
     show_movie_details,
     add_movie,
-    delete_movie,  # New import
+    delete_movie,
     process_movie_name,
     process_movie_description,
     process_movie_poster,
     process_movie_link,
     process_movie_categories,
     process_search,
-    confirm_delete_movie,  # New import
-    process_delete_confirmation,  # New import
-    process_telegram_link, #New import - Assumed to exist in handlers.py
-    STATES
+    confirm_delete_movie,
+    process_delete_confirmation,
+    process_telegram_link,
+    help_command,
+    command_search,
+    STATES,
+    list_all_movies,
+    toggle_movie_visibility,
 )
 
 # Enable logging
@@ -60,7 +64,7 @@ def main():
                 MessageHandler(filters.TEXT & ~filters.COMMAND, process_movie_link),
                 CallbackQueryHandler(process_movie_link, pattern='^cancel$')
             ],
-            STATES['TELEGRAM_LINK']: [  # Add new state
+            STATES['TELEGRAM_LINK']: [
                 MessageHandler(filters.TEXT & ~filters.COMMAND, process_telegram_link),
                 CallbackQueryHandler(process_telegram_link, pattern='^cancel$')
             ],
@@ -77,9 +81,12 @@ def main():
         name="movie_conversation"
     )
 
-    # Add search conversation handler
+    # Add search conversation handler with both command and button entry points
     search_conv_handler = ConversationHandler(
-        entry_points=[CallbackQueryHandler(search_movie, pattern='^search$')],
+        entry_points=[
+            CallbackQueryHandler(search_movie, pattern='^search$'),
+            CommandHandler('search', command_search)
+        ],
         states={
             STATES['AWAITING_SEARCH']: [
                 MessageHandler(filters.TEXT & ~filters.COMMAND, process_search)
@@ -115,12 +122,16 @@ def main():
 
     # Add handlers in specific order - movie handler BEFORE search handler
     application.add_handler(CommandHandler('start', start))
-    application.add_handler(movie_conv_handler)  
-    application.add_handler(search_conv_handler)  
-    application.add_handler(delete_conv_handler)  # Add the new handler
+    application.add_handler(CommandHandler('help', help_command))
+    application.add_handler(movie_conv_handler)
+    application.add_handler(search_conv_handler)
+    application.add_handler(delete_conv_handler)
     application.add_handler(CallbackQueryHandler(owner_info, pattern='^owner_info$'))
     application.add_handler(CallbackQueryHandler(recommend_movies, pattern='^recommend$'))
     application.add_handler(CallbackQueryHandler(show_movie_details, pattern='^movie_'))
+    application.add_handler(CallbackQueryHandler(help_command, pattern='^help$'))
+    application.add_handler(CommandHandler('listmovies', list_all_movies))
+    application.add_handler(CommandHandler('togglemovie', toggle_movie_visibility))
 
     # Start the bot
     application.run_polling()

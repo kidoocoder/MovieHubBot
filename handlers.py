@@ -16,6 +16,7 @@ from utils import (
     format_movie_details,
     create_main_menu_keyboard
 )
+from typing import List
 
 # Configure logging
 logging.basicConfig(
@@ -348,7 +349,6 @@ async def process_movie_categories(update: Update, context: ContextTypes.DEFAULT
     return ConversationHandler.END
 
 
-
 async def delete_movie(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Start movie deletion process"""
     user_id = update.effective_user.id
@@ -423,3 +423,125 @@ async def process_delete_confirmation(update: Update, context: ContextTypes.DEFA
         await query.message.reply_text("Something went wrong. Please try again.")
 
     return ConversationHandler.END
+
+
+async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /help command and help button"""
+    # Base help text for all users
+    help_text = """
+🎬 *Movie Database Bot Commands*
+
+*Available Commands:*
+/start - Start the bot and show main menu
+/search - Search for a movie
+/help - Show this help message
+
+*Available Buttons:*
+• 🔍 Search Movie - Search for movies by name
+• 🎬 Recommend Movies - Browse all available movies
+• 👤 Owner Info - Show bot owner information
+• 💬 Support Channel - Join our support channel
+• ❓ Help - Show this help message
+    """
+
+    # Add owner-only commands if the user is the owner
+    if update.effective_user.id == OWNER_ID:
+        owner_help = """
+
+*Owner-Only Commands:*
+/addmovie - Add a new movie
+/delmovie - Delete an existing movie
+/listmovies - List all movies (including hidden)
+/togglemovie [id] - Toggle movie visibility
+        """
+        help_text += owner_help
+
+    await update.effective_message.reply_text(
+        help_text,
+        parse_mode=ParseMode.MARKDOWN
+    )
+
+async def command_search(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /search command"""
+    logger.info("User %s initiated search via command", update.effective_user.id)
+    await update.message.reply_text(
+        "Please enter the movie name you want to search:"
+    )
+    return STATES['AWAITING_SEARCH']
+
+async def list_all_movies(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Owner command to list all movies including hidden ones.
+    Command: /listmovies
+    """
+    user_id = update.effective_user.id
+    if user_id != OWNER_ID:
+        await update.message.reply_text("This command is only for the bot owner!")
+        return
+
+    movies = db.get_all_movies(include_hidden=True)
+    if not movies:
+        await update.message.reply_text("No movies in database!")
+        return
+
+    # Create a formatted list of movies with visibility status
+    movie_list = "*📽 All Movies (Including Hidden):*\n\n"
+    for movie in movies:
+        status = "🟢" if movie['visible'] else "🔴"
+        movie_list += f"{status} *{movie['name']}*\n"
+        movie_list += f"ID: `{movie['id']}`\n"
+        movie_list += f"Categories: {', '.join(movie['categories'])}\n\n"
+
+    # Split message if it's too long
+    if len(movie_list) > 4096:
+        chunks = [movie_list[i:i+4096] for i in range(0, len(movie_list), 4096)]
+        for chunk in chunks:
+            await update.message.reply_text(
+                chunk,
+                parse_mode=ParseMode.MARKDOWN
+            )
+    else:
+        await update.message.reply_text(
+            movie_list,
+            parse_mode=ParseMode.MARKDOWN
+        )
+
+    # Add instructions for toggling visibility
+    await update.message.reply_text(
+        "To toggle movie visibility, use:\n"
+        "/togglemovie [movie_id]\n\n"
+        "🟢 = Visible to users\n"
+        "🔴 = Hidden from users"
+    )
+
+async def toggle_movie_visibility(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Owner command to toggle movie visibility.
+    Command: /togglemovie <movie_id>
+    """
+    user_id = update.effective_user.id
+    if user_id != OWNER_ID:
+        await update.message.reply_text("This command is only for the bot owner!")
+        return
+
+    try:
+        movie_id = int(context.args[0])
+    except (IndexError, ValueError):
+        await update.message.reply_text(
+            "Please provide a valid movie ID.\n"
+            "Usage: /togglemovie [movie_id]"
+        )
+        return
+
+    movie = db.get_movie(movie_id)
+    if not movie:
+        await update.message.reply_text("Movie not found!")
+        return
+
+    if db.toggle_movie_visibility(movie_id):
+        new_status = "visible" if db.get_movie(movie_id)['visible'] else "hidden"
+        await update.message.reply_text(
+            f"Successfully set movie '{movie['name']}' to {new_status}!"
+        )
+    else:
+        await update.message.reply_text("Failed to toggle movie visibility!")

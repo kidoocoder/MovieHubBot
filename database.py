@@ -1,4 +1,9 @@
-from sqlalchemy import create_engine
+"""
+Database Operations
+This module handles all database operations for the movie database.
+"""
+
+from sqlalchemy import create_engine, and_
 from sqlalchemy.orm import sessionmaker, scoped_session
 from models import Base, Movie
 import os
@@ -8,6 +13,12 @@ import logging
 logger = logging.getLogger(__name__)
 
 class MovieDatabase:
+    """
+    Movie Database Handler
+
+    Singleton class that handles all database operations for movies.
+    Implements connection pooling and error handling.
+    """
     _instance = None
 
     def __new__(cls):
@@ -17,7 +28,7 @@ class MovieDatabase:
         return cls._instance
 
     def __init__(self):
-        """Initialize database connection"""
+        """Initialize database connection with connection pooling"""
         if self._initialized:
             return
 
@@ -37,11 +48,19 @@ class MovieDatabase:
             raise
 
     def get_session(self):
-        """Get a new session"""
+        """Get a new database session"""
         return self.Session()
 
     def add_movie(self, movie_data: Dict) -> bool:
-        """Add a new movie to the database"""
+        """
+        Add a new movie to the database.
+
+        Args:
+            movie_data (Dict): Dictionary containing movie information
+
+        Returns:
+            bool: True if successful, False otherwise
+        """
         session = self.get_session()
         try:
             movie = Movie(
@@ -49,8 +68,9 @@ class MovieDatabase:
                 description=movie_data['description'],
                 poster_url=movie_data['poster_url'],
                 download_link=movie_data['download_link'],
-                telegram_link=movie_data['telegram_link'],  # Add telegram link
-                categories=movie_data['categories']
+                telegram_link=movie_data['telegram_link'],
+                categories=movie_data['categories'],
+                visible=movie_data.get('visible', True)  # Default to visible
             )
             session.add(movie)
             session.commit()
@@ -64,7 +84,15 @@ class MovieDatabase:
             session.close()
 
     def get_movie(self, movie_id: int) -> Optional[Dict]:
-        """Get movie by ID"""
+        """
+        Get movie by ID.
+
+        Args:
+            movie_id (int): ID of the movie to retrieve
+
+        Returns:
+            Optional[Dict]: Movie data dictionary or None if not found
+        """
         session = self.get_session()
         try:
             movie = session.query(Movie).filter(Movie.id == movie_id).first()
@@ -76,11 +104,19 @@ class MovieDatabase:
             session.close()
 
     def search_movie(self, query: str) -> List[Dict]:
-        """Search movies by name"""
+        """
+        Search visible movies by name.
+
+        Args:
+            query (str): Search query string
+
+        Returns:
+            List[Dict]: List of matching movie dictionaries
+        """
         session = self.get_session()
         try:
             movies = session.query(Movie).filter(
-                Movie.name.ilike(f"%{query}%")
+                and_(Movie.name.ilike(f"%{query}%"), Movie.visible == True)
             ).all()
             return [movie.to_dict() for movie in movies]
         except Exception as e:
@@ -89,11 +125,22 @@ class MovieDatabase:
         finally:
             session.close()
 
-    def get_all_movies(self) -> List[Dict]:
-        """Get all movies"""
+    def get_all_movies(self, include_hidden: bool = False) -> List[Dict]:
+        """
+        Get all movies from database.
+
+        Args:
+            include_hidden (bool): Whether to include hidden movies
+
+        Returns:
+            List[Dict]: List of all movie dictionaries
+        """
         session = self.get_session()
         try:
-            movies = session.query(Movie).all()
+            query = session.query(Movie)
+            if not include_hidden:
+                query = query.filter(Movie.visible == True)
+            movies = query.all()
             return [movie.to_dict() for movie in movies]
         except Exception as e:
             logger.error(f"Error getting all movies: {str(e)}")
@@ -101,12 +148,46 @@ class MovieDatabase:
         finally:
             session.close()
 
+    def toggle_movie_visibility(self, movie_id: int) -> bool:
+        """
+        Toggle movie visibility.
+
+        Args:
+            movie_id (int): ID of the movie to toggle visibility
+
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        session = self.get_session()
+        try:
+            movie = session.query(Movie).filter(Movie.id == movie_id).first()
+            if movie:
+                movie.visible = not movie.visible
+                session.commit()
+                logger.info(f"Successfully toggled visibility for movie ID {movie_id}")
+                return True
+            return False
+        except Exception as e:
+            logger.error(f"Error toggling movie visibility: {str(e)}")
+            session.rollback()
+            return False
+        finally:
+            session.close()
+
     def get_movies_by_category(self, category: str) -> List[Dict]:
-        """Get movies by category"""
+        """
+        Get visible movies by category.
+
+        Args:
+            category (str): Category to filter by
+
+        Returns:
+            List[Dict]: List of movies in the specified category
+        """
         session = self.get_session()
         try:
             movies = session.query(Movie).filter(
-                Movie.categories.any(category)
+                and_(Movie.categories.any(category), Movie.visible == True)
             ).all()
             return [movie.to_dict() for movie in movies]
         except Exception as e:
@@ -116,7 +197,15 @@ class MovieDatabase:
             session.close()
 
     def delete_movie(self, movie_id: int) -> bool:
-        """Delete a movie from the database"""
+        """
+        Delete a movie from database.
+
+        Args:
+            movie_id (int): ID of movie to delete
+
+        Returns:
+            bool: True if successful, False otherwise
+        """
         session = self.get_session()
         try:
             movie = session.query(Movie).filter(Movie.id == movie_id).first()
