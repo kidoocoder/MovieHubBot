@@ -94,8 +94,8 @@ def main():
         entry_points=[CommandHandler('delmovie', delete_movie)],
         states={
             STATES['DELETE_CONFIRMATION']: [
-                CallbackQueryHandler(confirm_delete_movie, pattern=r'^movie_'),
-                CallbackQueryHandler(process_delete_confirmation, pattern=r'^confirm_delete_'),
+                CallbackQueryHandler(confirm_delete_movie, pattern=r'^movie_\d+$'),
+                CallbackQueryHandler(process_delete_confirmation, pattern=r'^confirm_delete_\d+$'),
                 CallbackQueryHandler(process_delete_confirmation, pattern='^cancel_delete$')
             ]
         },

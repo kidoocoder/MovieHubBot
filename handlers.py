@@ -2,7 +2,12 @@ import logging
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes, ConversationHandler
 from telegram.constants import ParseMode
-from config import OWNER_ID, WELCOME_MESSAGE, MOVIE_CATEGORIES
+from config import (
+    OWNER_ID, 
+    WELCOME_MESSAGE, 
+    MOVIE_CATEGORIES,
+    WELCOME_IMAGE_URL
+)
 from database import MovieDatabase
 from utils import (
     create_movie_keyboard,
@@ -36,10 +41,22 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /start command"""
     logger.info("User %s started the bot", update.effective_user.id)
     keyboard = create_main_menu_keyboard()
-    await update.message.reply_text(
-        WELCOME_MESSAGE,
-        reply_markup=keyboard
-    )
+
+    # First send the welcome image
+    try:
+        await update.message.reply_photo(
+            photo=WELCOME_IMAGE_URL,
+            caption=WELCOME_MESSAGE,
+            reply_markup=keyboard,
+            parse_mode=ParseMode.MARKDOWN
+        )
+    except Exception as e:
+        logger.error(f"Failed to send welcome image: {str(e)}")
+        # Fallback to text-only message if image fails
+        await update.message.reply_text(
+            WELCOME_MESSAGE,
+            reply_markup=keyboard
+        )
 
 async def owner_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle owner info button"""
@@ -357,10 +374,15 @@ async def process_delete_confirmation(update: Update, context: ContextTypes.DEFA
         await query.message.reply_text("Movie deletion cancelled.")
         return ConversationHandler.END
 
-    movie_id = int(query.data.split('_')[1]) #Corrected index here.
-    if db.delete_movie(movie_id):
-        await query.message.reply_text("Movie successfully deleted!")
-    else:
-        await query.message.reply_text("Failed to delete movie. Please try again.")
+    try:
+        # Extract movie ID from confirm_delete_X pattern
+        movie_id = int(query.data.split('_')[2])  # Changed from [1] to [2] to get the actual ID
+        if db.delete_movie(movie_id):
+            await query.message.reply_text("Movie successfully deleted!")
+        else:
+            await query.message.reply_text("Failed to delete movie. Please try again.")
+    except (ValueError, IndexError) as e:
+        logger.error(f"Error processing delete confirmation: {str(e)}")
+        await query.message.reply_text("Something went wrong. Please try again.")
 
     return ConversationHandler.END
