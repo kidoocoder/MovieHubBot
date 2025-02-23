@@ -30,9 +30,10 @@ STATES = {
     'MOVIE_DESC': 'MOVIE_DESC',
     'MOVIE_POSTER': 'MOVIE_POSTER',
     'MOVIE_LINK': 'MOVIE_LINK',
+    'TELEGRAM_LINK': 'TELEGRAM_LINK',  # New state
     'MOVIE_CATEGORIES': 'MOVIE_CATEGORIES',
     'AWAITING_SEARCH': 'AWAITING_SEARCH',
-    'DELETE_CONFIRMATION': 'DELETE_CONFIRMATION'  # New state
+    'DELETE_CONFIRMATION': 'DELETE_CONFIRMATION'
 }
 
 db = MovieDatabase()
@@ -124,15 +125,27 @@ async def show_movie_details(update: Update, context: ContextTypes.DEFAULT_TYPE)
         await query.message.reply_text("Movie not found!")
         return
 
-    keyboard = [[
-        InlineKeyboardButton(text="⬇️ Download", url=movie['download_link'])
-    ]]
+    keyboard = [
+        [InlineKeyboardButton(text="⬇️ Direct Download", url=movie['download_link'])],
+        [InlineKeyboardButton(text="📢 Download from Channel", url=movie['telegram_link'])]
+    ]
 
-    await query.message.reply_text(
-        format_movie_details(movie),
-        reply_markup=InlineKeyboardMarkup(keyboard),
-        parse_mode=ParseMode.MARKDOWN
-    )
+    try:
+        # Send photo with caption and download buttons
+        await query.message.reply_photo(
+            photo=movie['poster_url'],
+            caption=format_movie_details(movie),
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode=ParseMode.MARKDOWN
+        )
+    except Exception as e:
+        logger.error(f"Failed to send movie poster: {str(e)}")
+        # Fallback to text-only message if image fails
+        await query.message.reply_text(
+            format_movie_details(movie),
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode=ParseMode.MARKDOWN
+        )
 
 # Owner-only commands
 async def add_movie(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -266,8 +279,30 @@ async def process_movie_link(update: Update, context: ContextTypes.DEFAULT_TYPE)
         await update.callback_query.answer()
         await update.callback_query.message.reply_text("Movie addition cancelled.")
         return ConversationHandler.END
+
     logger.info("Processing movie link from user %s", update.effective_user.id)
     context.user_data['download_link'] = update.message.text
+    keyboard = [[InlineKeyboardButton("❌ Cancel", callback_data="cancel")]]
+    await update.message.reply_text(
+        "Please enter the Telegram channel link where users can also download the movie:",
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
+    return STATES['TELEGRAM_LINK']
+
+async def process_telegram_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Process telegram channel link"""
+    if update.effective_user.id != OWNER_ID:
+        logger.warning("Unauthorized user %s tried to add movie", update.effective_user.id)
+        await update.message.reply_text("This command is only for the bot owner!")
+        return ConversationHandler.END
+
+    if update.callback_query and update.callback_query.data == "cancel":
+        await update.callback_query.answer()
+        await update.callback_query.message.reply_text("Movie addition cancelled.")
+        return ConversationHandler.END
+
+    logger.info("Processing telegram link from user %s", update.effective_user.id)
+    context.user_data['telegram_link'] = update.message.text
     keyboard = create_category_keyboard()
     await update.message.reply_text(
         "Select movie categories:",
@@ -297,6 +332,7 @@ async def process_movie_categories(update: Update, context: ContextTypes.DEFAULT
         'description': context.user_data['movie_description'],
         'poster_url': context.user_data['poster_url'],
         'download_link': context.user_data['download_link'],
+        'telegram_link': context.user_data['telegram_link'],  # Include telegram link
         'categories': context.user_data['categories']
     }
 
@@ -310,6 +346,7 @@ async def process_movie_categories(update: Update, context: ContextTypes.DEFAULT
 
     context.user_data.clear()  # Clear the user data after completion
     return ConversationHandler.END
+
 
 
 async def delete_movie(update: Update, context: ContextTypes.DEFAULT_TYPE):

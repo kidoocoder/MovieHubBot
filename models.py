@@ -8,12 +8,13 @@ Base = declarative_base()
 
 class Movie(Base):
     __tablename__ = 'movies'
-    
+
     id = Column(Integer, primary_key=True)
     name = Column(String, nullable=False)
     description = Column(String)
     poster_url = Column(String)
     download_link = Column(String)
+    telegram_link = Column(String)  # New field for Telegram channel link
     categories = Column(ARRAY(String))
 
     def to_dict(self):
@@ -23,6 +24,7 @@ class Movie(Base):
             'description': self.description,
             'poster_url': self.poster_url,
             'download_link': self.download_link,
+            'telegram_link': self.telegram_link,  # Include telegram link in dict
             'categories': self.categories
         }
 

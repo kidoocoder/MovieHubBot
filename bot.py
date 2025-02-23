@@ -24,6 +24,7 @@ from handlers import (
     process_search,
     confirm_delete_movie,  # New import
     process_delete_confirmation,  # New import
+    process_telegram_link, #New import - Assumed to exist in handlers.py
     STATES
 )
 
@@ -58,6 +59,10 @@ def main():
             STATES['MOVIE_LINK']: [
                 MessageHandler(filters.TEXT & ~filters.COMMAND, process_movie_link),
                 CallbackQueryHandler(process_movie_link, pattern='^cancel$')
+            ],
+            STATES['TELEGRAM_LINK']: [  # Add new state
+                MessageHandler(filters.TEXT & ~filters.COMMAND, process_telegram_link),
+                CallbackQueryHandler(process_telegram_link, pattern='^cancel$')
             ],
             STATES['MOVIE_CATEGORIES']: [
                 CallbackQueryHandler(process_movie_categories, pattern=r'^category_')

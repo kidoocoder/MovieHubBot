@@ -49,6 +49,7 @@ class MovieDatabase:
                 description=movie_data['description'],
                 poster_url=movie_data['poster_url'],
                 download_link=movie_data['download_link'],
+                telegram_link=movie_data['telegram_link'],  # Add telegram link
                 categories=movie_data['categories']
             )
             session.add(movie)
