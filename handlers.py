@@ -143,12 +143,22 @@ async def process_movie_name(update: Update, context: ContextTypes.DEFAULT_TYPE)
         await update.callback_query.message.reply_text("Movie addition cancelled.")
         return ConversationHandler.END
 
+    if not update.message or not update.message.text:
+        logger.warning("Received update without message text")
+        return STATES['MOVIE_NAME']  # Stay in the same state
+
+    if not isinstance(update.message.text, str):
+        logger.warning("Invalid message type received")
+        return STATES['MOVIE_NAME']  # Stay in the same state
+
+    logger.info("Movie name received: %s", update.message.text)
     context.user_data['movie_name'] = update.message.text
     keyboard = [[InlineKeyboardButton("❌ Cancel", callback_data="cancel")]]
     await update.message.reply_text(
         "Please enter the movie description:",
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
+    logger.info("Transitioning to MOVIE_DESC state")
     return STATES['MOVIE_DESC']
 
 async def process_movie_description(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -157,10 +167,24 @@ async def process_movie_description(update: Update, context: ContextTypes.DEFAUL
         await update.callback_query.answer()
         await update.callback_query.message.reply_text("Movie addition cancelled.")
         return ConversationHandler.END
-    logger.info("Processing movie description from user %s", update.effective_user.id)
+
+    if not update.message or not update.message.text:
+        logger.warning("Received update without message text")
+        return STATES['MOVIE_DESC']  # Stay in the same state
+
+    if 'movie_name' not in context.user_data:
+        logger.error("Movie name not found in context")
+        await update.message.reply_text("Something went wrong. Please start over with /addmovie")
+        return ConversationHandler.END
+
+    logger.info("Movie description received for movie: %s", context.user_data.get('movie_name', 'Unknown'))
     context.user_data['movie_description'] = update.message.text
     keyboard = [[InlineKeyboardButton("❌ Cancel", callback_data="cancel")]]
-    await update.message.reply_text("Please enter the movie poster URL:", reply_markup=InlineKeyboardMarkup(keyboard))
+    await update.message.reply_text(
+        "Please enter the movie poster URL:",
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
+    logger.info("Transitioning to MOVIE_POSTER state")
     return STATES['MOVIE_POSTER']
 
 async def process_movie_poster(update: Update, context: ContextTypes.DEFAULT_TYPE):

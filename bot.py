@@ -41,16 +41,20 @@ def main():
         entry_points=[CommandHandler('addmovie', add_movie)],
         states={
             STATES['MOVIE_NAME']: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, process_movie_name)
+                MessageHandler(filters.TEXT & ~filters.COMMAND & ~filters.Regex('^/'), process_movie_name),
+                CallbackQueryHandler(process_movie_name, pattern='^cancel$')
             ],
             STATES['MOVIE_DESC']: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, process_movie_description)
+                MessageHandler(filters.TEXT & ~filters.COMMAND & ~filters.Regex('^/'), process_movie_description),
+                CallbackQueryHandler(process_movie_description, pattern='^cancel$')
             ],
             STATES['MOVIE_POSTER']: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, process_movie_poster)
+                MessageHandler(filters.TEXT & ~filters.COMMAND & ~filters.Regex('^/'), process_movie_poster),
+                CallbackQueryHandler(process_movie_poster, pattern='^cancel$')
             ],
             STATES['MOVIE_LINK']: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, process_movie_link)
+                MessageHandler(filters.TEXT & ~filters.COMMAND & ~filters.Regex('^/'), process_movie_link),
+                CallbackQueryHandler(process_movie_link, pattern='^cancel$')
             ],
             STATES['MOVIE_CATEGORIES']: [
                 CallbackQueryHandler(process_movie_categories, pattern=r'^category_')
@@ -70,7 +74,7 @@ def main():
         entry_points=[CallbackQueryHandler(search_movie, pattern='^search$')],
         states={
             STATES['AWAITING_SEARCH']: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, process_search)
+                MessageHandler(filters.TEXT & ~filters.COMMAND & ~filters.Regex('^/'), process_search)
             ]
         },
         fallbacks=[
