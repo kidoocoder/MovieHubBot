@@ -137,7 +137,14 @@ async def add_movie(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def process_movie_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Process movie name"""
-    logger.info("Processing movie name from user %s", update.effective_user.id)
+    user_id = update.effective_user.id
+    logger.info("Processing movie name from user %s", user_id)
+
+    if user_id != OWNER_ID:
+        logger.warning("Unauthorized user %s tried to add movie", user_id)
+        await update.message.reply_text("This command is only for the bot owner!")
+        return ConversationHandler.END
+
     if update.callback_query and update.callback_query.data == "cancel":
         await update.callback_query.answer()
         await update.callback_query.message.reply_text("Movie addition cancelled.")
@@ -145,11 +152,12 @@ async def process_movie_name(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     if not update.message or not update.message.text:
         logger.warning("Received update without message text")
-        return STATES['MOVIE_NAME']  # Stay in the same state
-
-    if not isinstance(update.message.text, str):
-        logger.warning("Invalid message type received")
-        return STATES['MOVIE_NAME']  # Stay in the same state
+        keyboard = [[InlineKeyboardButton("❌ Cancel", callback_data="cancel")]]
+        await update.effective_message.reply_text(
+            "Please enter a valid movie name:\n\nOr click Cancel to abort.",
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+        return STATES['MOVIE_NAME']
 
     logger.info("Movie name received: %s", update.message.text)
     context.user_data['movie_name'] = update.message.text
@@ -163,6 +171,11 @@ async def process_movie_name(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
 async def process_movie_description(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Process movie description"""
+    if update.effective_user.id != OWNER_ID:
+        logger.warning("Unauthorized user %s tried to add movie", update.effective_user.id)
+        await update.message.reply_text("This command is only for the bot owner!")
+        return ConversationHandler.END
+
     if update.callback_query and update.callback_query.data == "cancel":
         await update.callback_query.answer()
         await update.callback_query.message.reply_text("Movie addition cancelled.")
@@ -189,23 +202,48 @@ async def process_movie_description(update: Update, context: ContextTypes.DEFAUL
 
 async def process_movie_poster(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Process movie poster"""
+    if update.effective_user.id != OWNER_ID:
+        logger.warning("Unauthorized user %s tried to add movie", update.effective_user.id)
+        await update.message.reply_text("This command is only for the bot owner!")
+        return ConversationHandler.END
+
     if update.callback_query and update.callback_query.data == "cancel":
         await update.callback_query.answer()
         await update.callback_query.message.reply_text("Movie addition cancelled.")
         return ConversationHandler.END
+
     logger.info("Processing movie poster from user %s", update.effective_user.id)
     poster_url = update.message.text
+    logger.info("Validating poster URL: %s", poster_url)
+
     if not validate_image_url(poster_url):
-        await update.message.reply_text("Invalid image URL. Please try again:")
+        logger.warning("Invalid image URL provided: %s", poster_url)
+        keyboard = [[InlineKeyboardButton("❌ Cancel", callback_data="cancel")]]
+        await update.message.reply_text(
+            "Invalid image URL. Please make sure:\n"
+            "1. The URL is a direct link to an image (ends with .jpg, .png, etc.)\n"
+            "2. The image is publicly accessible\n"
+            "3. The URL starts with http:// or https://\n\n"
+            "Please try again:",
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
         return STATES['MOVIE_POSTER']
 
     context.user_data['poster_url'] = poster_url
     keyboard = [[InlineKeyboardButton("❌ Cancel", callback_data="cancel")]]
-    await update.message.reply_text("Please enter the download link:", reply_markup=InlineKeyboardMarkup(keyboard))
+    await update.message.reply_text(
+        "Please enter the download link:", 
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
     return STATES['MOVIE_LINK']
 
 async def process_movie_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Process movie download link"""
+    if update.effective_user.id != OWNER_ID:
+        logger.warning("Unauthorized user %s tried to add movie", update.effective_user.id)
+        await update.message.reply_text("This command is only for the bot owner!")
+        return ConversationHandler.END
+
     if update.callback_query and update.callback_query.data == "cancel":
         await update.callback_query.answer()
         await update.callback_query.message.reply_text("Movie addition cancelled.")

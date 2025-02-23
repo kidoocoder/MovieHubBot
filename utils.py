@@ -4,6 +4,8 @@ from PIL import Image
 from io import BytesIO
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram._utils.types import ReplyMarkup
+import logging
+logger = logging.getLogger(__name__)
 
 def create_movie_keyboard(movies: List[dict]) -> ReplyMarkup:
     """Create keyboard markup for movie list"""
@@ -37,10 +39,29 @@ def create_category_keyboard() -> ReplyMarkup:
 def validate_image_url(url: str) -> bool:
     """Validate if URL points to an image"""
     try:
-        response = requests.get(url)
-        img = Image.open(BytesIO(response.content))
-        return True
-    except:
+        # Use a longer timeout for slower servers
+        response = requests.get(url, timeout=30, headers={
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        })
+
+        if response.status_code != 200:
+            logger.warning(f"Failed to fetch image URL {url}. Status code: {response.status_code}")
+            return False
+
+        # Try to open as image regardless of content type
+        try:
+            img = Image.open(BytesIO(response.content))
+            img.verify()  # Verify it's actually an image
+            return True
+        except Exception as e:
+            logger.warning(f"Failed to verify image format for URL {url}. Error: {str(e)}")
+            return False
+
+    except requests.RequestException as e:
+        logger.warning(f"Request failed for URL {url}. Error: {str(e)}")
+        return False
+    except Exception as e:
+        logger.warning(f"Failed to validate image URL {url}. Error: {str(e)}")
         return False
 
 def format_movie_details(movie: dict) -> str:
