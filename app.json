@@ -1,0 +1,31 @@
+
+{
+      "name": "Movie Database Bot",
+      "description": "Telegram bot for managing and sharing movies",
+      "repository": "",
+      "env": {
+        "TELEGRAM_BOT_TOKEN": {
+          "description": "Your Telegram Bot Token",
+          "required": true
+        },
+        "OWNER_ID": {
+          "description": "Telegram User ID of the bot owner",
+          "required": true
+        },
+        "DATABASE_URL": {
+          "description": "PostgreSQL Database URL",
+          "required": true
+        },
+        "LOG_GROUP_ID": {
+          "description": "Telegram Group ID for logging",
+          "required": false
+        }
+      },
+      "formation": {
+        "worker": {
+          "quantity": 1,
+          "size": "basic"
+        }
+      }
+    }
+    
