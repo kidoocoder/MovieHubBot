@@ -2,7 +2,7 @@
 Utility Functions
 This module contains utility functions for the Telegram bot application.
 """
-
+from config import OWNER_ID
 from typing import List
 import requests
 from PIL import Image
@@ -88,7 +88,7 @@ def create_main_menu_keyboard() -> ReplyMarkup:
     from config import SUPPORT_CHANNEL
     keyboard = [
         [
-            InlineKeyboardButton(text="👤 Owner Info", callback_data="owner_info"),
+            InlineKeyboardButton(text="👤 Owner Info", user_id=config.OWNER_ID),
             InlineKeyboardButton(text="💬 Support", url=SUPPORT_CHANNEL)
         ],
         [
