@@ -7,7 +7,8 @@ from config import (
     WELCOME_MESSAGE, 
     MOVIE_CATEGORIES,
     WELCOME_IMAGE_URL,
-    LOG_GROUP_ID
+    LOG_GROUP_ID,
+    DATABASE_URL
 )
 from database import MovieDatabase
 from utils import (
