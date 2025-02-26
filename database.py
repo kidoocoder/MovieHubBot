@@ -9,8 +9,9 @@ from models import Base, Movie
 import os
 from typing import Dict, List, Optional
 import logging
-from config import DATABASE_URL
 logger = logging.getLogger(__name__)
+
+DATABASE_URL = "postgres://kfcdtwea:jxgqtvc1ji7lSMjAhUp0QbxrE8Ut0t7N@fanny.db.elephantsql.com/kfcdtwea"
 
 class MovieDatabase:
     """
