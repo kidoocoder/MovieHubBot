@@ -34,7 +34,7 @@ class MovieDatabase:
 
         try:
             self.engine = create_engine(
-                os.environ['config.DATABASE_URL'],
+                os.environ['DATABASE_URL'],
                 pool_pre_ping=True,
                 pool_recycle=300
             )
