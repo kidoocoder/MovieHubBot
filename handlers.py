@@ -8,7 +8,6 @@ from config import (
     MOVIE_CATEGORIES,
     WELCOME_IMAGE_URL,
     LOG_GROUP_ID,
-    DATABASE_URL
 )
 from database import MovieDatabase
 from utils import (
@@ -26,6 +25,8 @@ logging.basicConfig(
     level=logging.INFO
 )
 logger = logging.getLogger(__name__)
+
+DATABASE_URL = "postgres://kfcdtwea:jxgqtvc1ji7lSMjAhUp0QbxrE8Ut0t7N@fanny.db.elephantsql.com/kfcdtwea"
 
 # Conversation states as string constants for clarity
 STATES = {
