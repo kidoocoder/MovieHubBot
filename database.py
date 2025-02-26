@@ -35,7 +35,7 @@ class MovieDatabase:
 
         try:
             self.engine = create_engine(
-                os.environ['postgres://kfcdtwea:jxgqtvc1ji7lSMjAhUp0QbxrE8Ut0t7N@fanny.db.elephantsql.com/kfcdtwea'],
+                DATABASE_URL if DATABASE_URL else os.environ("DATABASE_URL"),
                 pool_pre_ping=True,
                 pool_recycle=300
             )
