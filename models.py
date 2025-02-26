@@ -7,7 +7,9 @@ from sqlalchemy import Column, Integer, String, Boolean, create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.dialects.postgresql import ARRAY
 import os
-from config import DATABASE_URL
+
+DATABASE_URL = "postgres://kfcdtwea:jxgqtvc1ji7lSMjAhUp0QbxrE8Ut0t7N@fanny.db.elephantsql.com/kfcdtwea"
+
 Base = declarative_base()
 
 class Movie(Base):
