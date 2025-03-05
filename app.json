@@ -20,5 +20,12 @@
           "description": "Telegram Group ID for logging",
           "required": true
         }
+      },
+      "formation": {
+        "worker": {
+          "quantity": 1,
+          "size": "free"
+        }
+      }
     }
     
